@@ -9,11 +9,7 @@ xlnet_tokenizer = TOKENIZER = transformers.XLNetTokenizer.from_pretrained(
 BERT_MODEL_NAME = 'bert-base-uncased'
 bert_tokenizer = BertTokenizer.from_pretrained(BERT_MODEL_NAME)
 
-# '''
-# 0 -  bert
-# 1 - xlent
 
-# '''
 
 
 class ReBert(nn.Module):
