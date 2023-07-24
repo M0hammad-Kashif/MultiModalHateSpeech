@@ -1,111 +1,101 @@
 from imports import *
-from model import tokenizer
+from model import bert_tokenizer , xlnet_tokenizer
 from utils import *
 
-hate_images = glob('subTaskA/Hate Speech/**.jpg')
-nohate_images = glob('subTaskA/No Hate Speech/**.jpg')
+df = pd.read_csv('multiModalTrainingSetA.csv')
+# df = df.dropna()
+# X = df['text'].astype(str).values.tolist()
+# X = df['text'].tolist()
+X = df.drop('label',axis=1)
+# print(X)
+y = df['label'].tolist()
+# print(type(y))
+				
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42,stratify=y)
 
-shuffle(hate_images)
-shuffle(nohate_images)
+X_train_text = X_train['text'].tolist()
+X_test_text = X_test['text'].tolist()
 
+X_train_filename = X_train['filename'].tolist()
+X_test_filename = X_test['filename'].tolist()
 
-train_hate = hate_images[:round(len(hate_images)*.80)]
-train_nohate = nohate_images[:round(len(nohate_images)*.80)]
-
-
-test_hate = hate_images[round(len(hate_images)*.80):]
-test_nohate = nohate_images[round(len(nohate_images)*.80):]
-
-
-train_images = train_hate + train_nohate
-test_images = test_hate + test_nohate
-
-lbl_0 = 0.0
-lbl_1 = 0.0
-
-for pth in train_images:
-
-    rd = pth.split('/')[1]
-    if rd == 'Hate Speech':
-        lbl_1 +=1
-    else:
-        lbl_0 +=1
-        
-w0 = lbl_0 / (lbl_0 + lbl_1)
-w1 = lbl_1 / (lbl_0 + lbl_1)
-
-wts = torch.tensor([w0,w1]).to(device)
-
-
-
-
-img_size = 128
-aug= A.Compose([
-            A.Resize(img_size,img_size),
-
-            A.Normalize(mean=(0), std=(1)),
-            ToTensorV2(p=1.0),
-        ], p=1.0)
-
+srcPath = 'subTaskA/'
 
 class CustomTextDataset(Dataset):
-
-
-
-        def __init__(self, imageDirectory , tokenizer , transform, max_token_len=128):
-
-
-                self.imagePath = imageDirectory
-                self.tokenizer = tokenizer
+        def __init__(self, X_text,X_image ,y ,tokenizer0,tokenizer1 , max_token_len=512):
+                self.X = X_text
+                self.images = X_image
+                self.tokenizer1 = tokenizer1
+                self.tokenizer0 = tokenizer0
                 self.max_token_len = max_token_len
-                self.transform = transform
-
+                self.y = y 
 
         def __len__(self):
-                return len(self.imagePath)
+                return len(self.images)
 
         def __getitem__(self, idx):
-                filePath = self.imagePath
+                try: 
+                        extracted_text = unidecode(self.X[idx])
+                        label = self.y[idx]   
+                        image = cv2.imread(srcPath + str(self.images[idx]))
+                        # print('image opened')
+                        image = cv2.resize(image,(224,224))
+                        image = image/255.0
+                        
+                        encodings0 = self.tokenizer0.encode_plus(
+                                text = extracted_text,
+                                add_special_tokens = True,
+                                max_length = self.max_token_len,
+                                return_token_type_ids = False,
+                                padding="max_length",
+                                truncation=True,
+                                return_attention_mask = True,
+                                return_tensors='pt',
+                                # is_split_into_words=True
+                        )
 
+                        encodings1 = self.tokenizer1.encode_plus(
+                                text = extracted_text,
+                                add_special_tokens = True,
+                                max_length = self.max_token_len,
+                                return_token_type_ids = False,
+                                padding="max_length",
+                                truncation=True,
+                                return_attention_mask = True,
+                                return_tensors='pt',
+                                # is_split_into_words=True
+                        )
 
-                image = Image.open(filePath[idx]) # this is PIL image
-
-                image = np.array(image) # (H,W,C)
-
-                image = self.transform(image=image)['image']
-
-
-                extracted_text = extract_text(filePath[idx])
-
-                label = 0
-                rd = filePath[idx].split('/')[1]
-                if rd == 'Hate Speech':
-                        label = 1
-
-                encodings = self.tokenizer.encode_plus(
-                        text = extracted_text,
-                        add_special_tokens = True,
-                        max_length = self.max_token_len,
-                        return_token_type_ids = False,
-                        padding="max_length",
-                        truncation=True,
-                        return_attention_mask = True,
-                        return_tensors='pt'
-                )
-
-                return dict(
-                        text = extracted_text,
-                        input_ids = encodings['input_ids'].flatten(),
-                        attention_mask = encodings['attention_mask'].flatten(),
-                        label = torch.tensor(float(label)),
-                        image= image
-                )
+                        return [ dict(
+                                text = extracted_text,
+                                input_ids = encodings0['input_ids'].flatten(),
+                                attention_mask = encodings0['attention_mask'].flatten(),
+                                label = torch.tensor(float(label)),
+                                image = image
+                                
+                        ) ,
+                        dict(
+                                text = extracted_text,
+                                input_ids = encodings1['input_ids'].flatten(),
+                                attention_mask = encodings1['attention_mask'].flatten(),
+                                label = torch.tensor(float(label))
+                                
+                        ) ]
+                except:
+                        extracted_text = unidecode(self.X[idx])
+                        # label = self.y[idx]
+                        print(extract_text)
+                        print(f'failed at {idx}')
                 
 
 
-trainset = CustomTextDataset(train_images,tokenizer,aug,256)
-testset = CustomTextDataset(test_images,tokenizer,aug,256)
+trainset = CustomTextDataset(X_train_text,X_train_filename,y_train,bert_tokenizer,xlnet_tokenizer,512)
+testset = CustomTextDataset(X_test_text,X_train_filename,y_test,bert_tokenizer,xlnet_tokenizer,512)
 
 
-train_dataloader = DataLoader(trainset,batch_size=16,shuffle=True)
-valid_dataloader = DataLoader(testset,batch_size=16,shuffle=False)
+train_dataloader = DataLoader(trainset,batch_size=64,shuffle=True)
+valid_dataloader = DataLoader(testset,batch_size=64,shuffle=False)
+
+
+# for b, data in enumerate(train_dataloader):
+#         print(data[0]['image'].shape)

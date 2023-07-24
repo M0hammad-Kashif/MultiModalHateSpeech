@@ -1,10 +1,11 @@
 from imports import *
-from model import ReBert , bert
+from model import ReBert , bert , xlnet
+# from model2 import ReBert , xlent
 from data import *
 
-model = ReBert(bert).to(device)
+model = ReBert(bert,xlnet).to(device)
 
-criterion = nn.CrossEntropyLoss(weight=wts,reduction='sum')
+criterion = nn.CrossEntropyLoss(reduction='sum')
 
 optimizer = torch.optim.Adam(model.parameters(), lr = 3e-4,weight_decay=3e-4)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.5)
@@ -25,14 +26,20 @@ def train_one_epoch(model,dataloader):
     loop = tqdm(dataloader, total=len(dataloader),desc='Train')
 
     for b , data in enumerate(loop):
-        image = data['image'].to(device)
-        mask = data['attention_mask'].to(device)
-        ids = data['input_ids'].to(device)
-        labels = data['label'].type(torch.LongTensor).to(device)
+        image = data[0]['image'].to(device)
+        image = image.float()
+        mask0 = data[0]['attention_mask'].to(device)
+        ids0 = data[0]['input_ids'].to(device)
+        
+        mask1 = data[1]['attention_mask'].to(device)
+        ids1 = data[1]['input_ids'].to(device)
+        
+        
+        labels = data[0]['label'].type(torch.LongTensor).to(device)
 
         # print(labels.shape)
 
-        out = model(ids,mask, image)
+        out = model(ids0,mask0,ids1,mask1,image)
 
         # print(out.shape)
         # pred = torch.sigmoid(out)
@@ -82,12 +89,13 @@ def valid_one_epoch(model,dataloader):
 
         for b , data in enumerate(loop):
 
-            image = data['image'].to(device)
+            image = data[0]['image'].to(device)
+            image = image.float()
             mask = data['attention_mask'].to(device)
             ids = data['input_ids'].to(device)
             labels = data['label'].type(torch.LongTensor).to(device)
 
-            out = model(ids,mask, image)
+            out = model(ids,mask)
 
             # pred = torch.sigmoid(out)
             # pred = torch.round(pred)
@@ -108,7 +116,7 @@ def valid_one_epoch(model,dataloader):
     return val_loss/len(dataloader) ,accuracy
 
 
-NUM_EPOCHS = 2
+NUM_EPOCHS = 50
 history = {'train_loss': [], 'train_acc': [], 'val_loss': [], 'val_acc': []}
 best_acc = 0.0
 
@@ -127,7 +135,7 @@ for epoch in range(NUM_EPOCHS):
     history['val_acc'].append(val_acc)
 
     if val_acc > best_acc:
-      torch.save(model.state_dict(),'best.pth')
+      torch.save(model.state_dict(),'best_xlent.pth')
 
 
 df = pd.DataFrame.from_dict(history)
