@@ -15,7 +15,7 @@ In this repository, we present the implementation of our Multimodal Hate Speech 
 
 ## Authors
 
-- [@Mohammad Kashif](https://github.com/M0hammad-Kashif)
-- [@Mohammad Zohair](https://github.com/Zohair0209/)
-- [@Saquib Ali](https://github.com/saquibali7/)
+- [Mohammad Kashif](https://github.com/M0hammad-Kashif)
+- [Mohammad Zohair](https://github.com/Zohair0209/)
+- [Saquib Ali](https://github.com/saquibali7/)
 
