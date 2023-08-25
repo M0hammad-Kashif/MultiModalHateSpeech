@@ -20,8 +20,8 @@ class ReBert(nn.Module):
 
       self.bert = bert.to(device)
       self.xlnet  = xlnet.to(device)
-      self.mobilenet = models.mobilenet_v3_small(pretrained=True)
-      self.mobilenet.classifier[3] = nn.Linear(in_features=1024, out_features=512, bias=True)
+      self.inception = models.inception_v3(pretrained=True)
+      self.inception.fc = nn.Linear(in_features=2048, out_features=512, bias=True)
       
 
       # dropout layer
@@ -62,7 +62,7 @@ class ReBert(nn.Module):
       x0 = self.relu(self.fc0(x0.pooler_output))
       
       image = image.permute(0,3,1,2)
-      x2 = self.relu(self.mobilenet(image))
+      x2 = self.relu(self.inception(image))
 
       x = self.fc2(torch.concat((x0,x1,x2),1))
       x = self.relu(x)
